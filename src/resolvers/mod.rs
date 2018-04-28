@@ -8,8 +8,8 @@
 /// A ring primitive resolver.
 #[cfg(feature = "ring-resolver")]      mod ring;
 
-use params::{CipherChoice, DHChoice, HashChoice};
-use types::{Cipher, Dh, Hash, Random};
+use params::{CipherChoice, DHChoice, HashChoice, ObfuscChoice};
+use types::{Cipher, Dh, Hash, Obfusc, Random};
 
 #[cfg(feature = "default-resolver")]   pub use self::default::DefaultResolver;
 #[cfg(feature = "hacl-star-resolver")] pub use self::hacl_star::HaclStarResolver;
@@ -28,6 +28,9 @@ pub trait CryptoResolver {
 
     /// Provide an implementation of the Cipher trait for the given CipherChoice or None if unavailable.
     fn resolve_cipher(&self, choice: &CipherChoice) -> Option<Box<Cipher>>;
+
+    /// Provide an implementation of the Obfusc trait for the given ObfuscChoice or None if unavailable.
+    fn resolve_obfusc(&self, choice: &ObfuscChoice) -> Option<Box<Obfusc + Send>>;
 }
 
 /// A helper struct that helps to opportunistically use one resolver, but
@@ -60,5 +63,9 @@ impl CryptoResolver for FallbackResolver {
 
     fn resolve_cipher(&self, choice: &CipherChoice) -> Option<Box<Cipher>> {
         self.preferred.resolve_cipher(choice).or_else(|| self.fallback.resolve_cipher(choice))
+    }
+
+    fn resolve_obfusc(&self, choice: &ObfuscChoice) -> Option<Box<Obfusc + Send>> {
+        self.preferred.resolve_obfusc(choice).or_else(|| self.fallback.resolve_obfusc(choice))
     }
 }

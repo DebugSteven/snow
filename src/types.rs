@@ -129,3 +129,18 @@ pub trait Hash : Send + Sync {
         self.hmac(&temp_key, &in3[..hash_len+1], out3);
     }
 }
+
+/// Obfuscation operations
+pub trait Obfusc {
+    /// The string defined for the primitive
+    fn name(&self) -> &'static str;
+
+    /// Set the key and IV to use for obfuscation
+    fn set(&mut self, key: &[u8], iv: &[u8]);
+
+    /// Obfuscate a given plaintext.
+    fn obfuscate(&mut self, plaintext: &[u8], out: &mut[u8]) -> usize;
+
+    /// Deobfuscate a given obfuscated text.
+    fn deobfuscate(&mut self, obfusctext: &[u8], out: &mut[u8]) -> Result<usize, ()>;
+}

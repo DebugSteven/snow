@@ -80,6 +80,10 @@ impl CryptoResolver for TestResolver {
     fn resolve_cipher(&self, choice: &CipherChoice) -> Option<Box<Cipher>> {
         self.parent.resolve_cipher(choice)
     }
+
+    fn resolve_obfusc(&self, choice: &ObfuscChoice) -> Option<Box<Obfusc + Send>> {
+        self.parent.resolve_obfusc(choice)
+    }
 }
 
 pub fn copy_memory(data: &[u8], out: &mut [u8]) -> usize {
