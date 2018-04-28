@@ -38,6 +38,9 @@ pub enum SnowError {
 
     #[fail(display = "decryption failed")]
     Decrypt,
+
+    #[fail(display = "deobfuscation failed")]
+    Deobfuscate,
 }
 
 /// The various stages of initialization used to help identify
@@ -73,6 +76,7 @@ pub enum InitStage {
     GetDhImpl,
     GetCipherImpl,
     GetHashImpl,
+    GetObfuscImpl,
     ValidatePskPosition,
 }
 
@@ -88,6 +92,7 @@ impl From<InitStage> for SnowError {
 pub enum Prerequisite {
     LocalPrivateKey,
     RemotePublicKey,
+    AESObfsKeyIV,
 }
 
 impl From<Prerequisite> for SnowError {

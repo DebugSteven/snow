@@ -78,6 +78,9 @@ pub enum HandshakeModifier {
     /// Insert a PSK to mix at the associated position
     Psk(u8),
 
+    /// Obfuscate the ephemerals using AES
+    AESObfsE,
+
     /// Modify the base pattern to its "fallback" form
     Fallback
 }
@@ -92,6 +95,8 @@ impl FromStr for HandshakeModifier {
                 .map_err(|_| PatternProblem::InvalidPsk)?))
         } else if s == "fallback" {
             Ok(HandshakeModifier::Fallback)
+        } else if s == "aesobfse" {
+            Ok(HandshakeModifier::AESObfsE)
         } else {
             bail!(PatternProblem::UnsupportedModifier);
         }
@@ -146,6 +151,16 @@ impl HandshakeChoice {
     pub fn is_fallback(&self) -> bool {
         for modifier in &self.modifiers.list {
             if HandshakeModifier::Fallback == *modifier {
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Whether the handshake choice includes the aesobfse modifier.
+    pub fn is_aesobfse(&self) -> bool {
+        for modifier in &self.modifiers.list {
+            if HandshakeModifier::AESObfsE == *modifier {
                 return true;
             }
         }

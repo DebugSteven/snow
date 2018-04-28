@@ -3,7 +3,7 @@ use handshakestate::HandshakeState;
 use cipherstate::{CipherState, CipherStates};
 use session::Session;
 use utils::Toggle;
-use params::NoiseParams;
+use params::{NoiseParams, ObfuscChoice};
 use resolvers::CryptoResolver;
 use error::{SnowError, InitStage, Prerequisite};
 
@@ -42,6 +42,7 @@ pub struct Builder<'builder> {
     rs:       Option<&'builder [u8]>,
     psks:     [Option<&'builder [u8]>; 10],
     plog:     Option<&'builder [u8]>,
+    aesobfse: Option<(&'builder [u8], &'builder [u8; 16])>,
 }
 
 impl<'builder> Builder<'builder> {
@@ -79,12 +80,20 @@ impl<'builder> Builder<'builder> {
             rs: None,
             plog: None,
             psks: [None; 10],
+            aesobfse: None,
         }
     }
 
     /// Specify a PSK (only used with `NoisePSK` base parameter)
     pub fn psk(mut self, location: u8, key: &'builder [u8]) -> Self {
         self.psks[location as usize] = Some(key);
+        self
+    }
+
+    /// Specify the key and IV to use for AES obfuscation of the ephemerals
+    /// (only used with `aesobfse` base parameter)
+    pub fn aesobfse(mut self, key: &'builder [u8], iv: &'builder [u8; 16]) -> Self {
+        self.aesobfse = Some((key, iv));
         self
     }
 
@@ -148,6 +157,10 @@ impl<'builder> Builder<'builder> {
             bail!(Prerequisite::RemotePublicKey);
         }
 
+        if !self.aesobfse.is_some() && self.params.handshake.is_aesobfse() {
+            bail!(Prerequisite::AESObfsKeyIV);
+        }
+
         let rng = self.resolver.resolve_rng().ok_or(InitStage::GetRngImpl)?;
         let cipher = self.resolver.resolve_cipher(&self.params.cipher).ok_or(InitStage::GetCipherImpl)?;
         let hash = self.resolver.resolve_hash(&self.params.hash).ok_or(InitStage::GetHashImpl)?;
@@ -196,12 +209,22 @@ impl<'builder> Builder<'builder> {
             }
         }
 
+        let aesobfse = match self.aesobfse {
+            Some((key, iv)) => {
+                let mut obfusc = self.resolver.resolve_obfusc(&ObfuscChoice::AESCBC).ok_or(InitStage::GetObfuscImpl)?;
+                obfusc.set(key, iv);
+                Some(obfusc)
+            }
+            None => None,
+        };
+
         let hs = HandshakeState::new(rng, handshake_cipherstate, hash,
                                      s, e, self.e_fixed.is_some(), rs, re,
                                      initiator,
                                      self.params,
                                      psks,
                                      self.plog.unwrap_or_else(|| &[0u8; 0] ),
+                                     aesobfse,
                                      cipherstates)?;
         Ok(hs.into())
     }
