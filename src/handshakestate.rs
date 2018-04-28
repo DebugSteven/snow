@@ -28,6 +28,7 @@ pub struct HandshakeState {
     initiator        : bool,
     params           : NoiseParams,
     psks             : [Option<[u8; PSKLEN]>; 10],
+    obfse            : Option<Box<Obfusc + Send>>,
     my_turn          : bool,
     message_patterns : MessagePatterns,
 }
@@ -49,6 +50,7 @@ impl HandshakeState {
         params          : NoiseParams,
         psks            : [Option<[u8; PSKLEN]>; 10],
         prologue        : &[u8],
+        obfse           : Option<Box<Obfusc + Send>>,
         cipherstates    : CipherStates) -> Result<HandshakeState, Error> {
 
         if (s.is_on() && e.is_on()  && s.pub_len() != e.pub_len())
@@ -110,6 +112,7 @@ impl HandshakeState {
             initiator,
             params,
             psks,
+            obfse,
             my_turn : initiator,
             message_patterns : tokens.msg_patterns,
         })
@@ -171,7 +174,11 @@ impl HandshakeState {
                     }
                     {
                         let pubkey = self.e.pubkey();
-                        copy_memory(pubkey, &mut message[byte_index..]);
+                        if let Some(ref mut obfusc) = self.obfse {
+                            obfusc.obfuscate(&pubkey, &mut message[byte_index..byte_index + self.e.pub_len()]);
+                        } else {
+                            copy_memory(pubkey, &mut message[byte_index..]);
+                        }
                         byte_index += self.s.pub_len();
                         self.symmetricstate.mix_hash(pubkey);
                         if self.params.handshake.is_psk() {
@@ -243,7 +250,11 @@ impl HandshakeState {
             for token in tokens.iter() {
                 match *token {
                     Token::E => {
-                        self.re[..dh_len].copy_from_slice(&ptr[..dh_len]);
+                        if let Some(ref mut obfusc) = self.obfse {
+                            obfusc.deobfuscate(&ptr[..dh_len], &mut self.re[..dh_len]);
+                        } else {
+                            self.re[..dh_len].copy_from_slice(&ptr[..dh_len]);
+                        }
                         ptr = &ptr[dh_len..];
                         self.symmetricstate.mix_hash(&self.re[..dh_len]);
                         if self.params.handshake.is_psk() {

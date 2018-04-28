@@ -71,7 +71,7 @@ impl HandshakePattern {
 }
 
 #[derive(Copy, Clone, PartialEq, Debug)]
-pub enum HandshakeModifier { Psk(u8), Fallback }
+pub enum HandshakeModifier { Psk(u8), Fallback, AESObfsE }
 
 impl FromStr for HandshakeModifier {
     type Err = &'static str;
@@ -81,6 +81,8 @@ impl FromStr for HandshakeModifier {
             Ok(HandshakeModifier::Psk((&s[3..]).parse().map_err(|_| "psk must have number parameter")?))
         } else if s == "fallback" {
             Ok(HandshakeModifier::Fallback)
+        } else if s == "aesobfse" {
+            Ok(HandshakeModifier::AESObfsE)
         } else {
             Err("unrecognized or invalid modifier")
         }
@@ -128,6 +130,15 @@ impl HandshakeChoice {
     pub fn is_fallback(&self) -> bool {
         for modifier in &self.modifiers.list {
             if HandshakeModifier::Fallback == *modifier {
+                return true;
+            }
+        }
+        false
+    }
+
+    pub fn is_aesobfse(&self) -> bool {
+        for modifier in &self.modifiers.list {
+            if HandshakeModifier::AESObfsE == *modifier {
                 return true;
             }
         }

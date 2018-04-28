@@ -92,3 +92,12 @@ pub trait Hash {
         self.hmac(&temp_key, &in3[..hash_len+1], out3);
     }
 }
+
+/// Provides obfuscation operations
+pub trait Obfusc {
+    fn name(&self) -> &'static str;
+
+    fn set(&mut self, key: &[u8], iv: &[u8]);
+    fn obfuscate(&mut self, plaintext: &[u8], out: &mut[u8]) -> usize;
+    fn deobfuscate(&mut self, obfusctext: &[u8], out: &mut[u8]) -> Result<usize, ()>;
+}

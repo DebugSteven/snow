@@ -26,13 +26,13 @@ pub enum SnowError {
 #[derive(Debug)]
 pub enum InitStage {
     ValidateKeyLengths, ValidatePskLengths, ValidateCipherTypes,
-    GetRngImpl, GetDhImpl, GetCipherImpl, GetHashImpl, ValidatePskPosition
+    GetRngImpl, GetDhImpl, GetCipherImpl, GetHashImpl, GetObfuscImpl, ValidatePskPosition
 }
 
 /// A prerequisite that may be missing.
 #[derive(Debug)]
 pub enum Prerequisite {
-    LocalPrivateKey, RemotePublicKey
+    LocalPrivateKey, RemotePublicKey, AESObfsKeyIV
 }
 
 /// Specific errors in the state machine.

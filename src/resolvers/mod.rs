@@ -13,6 +13,7 @@ pub trait CryptoResolver {
     fn resolve_dh(&self, choice: &DHChoice) -> Option<Box<Dh + Send>>;
     fn resolve_hash(&self, choice: &HashChoice) -> Option<Box<Hash + Send>>;
     fn resolve_cipher(&self, choice: &CipherChoice) -> Option<Box<Cipher + Send>>;
+    fn resolve_obfusc(&self, choice: &ObfuscChoice) -> Option<Box<Obfusc + Send>>;
 }
 
 pub struct FallbackResolver {
@@ -41,5 +42,9 @@ impl CryptoResolver for FallbackResolver {
 
     fn resolve_cipher(&self, choice: &CipherChoice) -> Option<Box<Cipher + Send>> {
         self.preferred.resolve_cipher(choice).or_else(|| self.fallback.resolve_cipher(choice))
+    }
+
+    fn resolve_obfusc(&self, choice: &ObfuscChoice) -> Option<Box<Obfusc + Send>> {
+        self.preferred.resolve_obfusc(choice).or_else(|| self.fallback.resolve_obfusc(choice))
     }
 }

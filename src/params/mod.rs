@@ -92,6 +92,12 @@ impl FromStr for HashChoice {
     }
 }
 
+/// One of `AESCBC`.
+#[derive(PartialEq, Copy, Clone, Debug)]
+pub enum ObfuscChoice {
+    AESCBC,
+}
+
 /// The set of choices (as specified in the Noise spec) that constitute a full protocol definition.
 ///
 /// See: [Chapter 11: Protocol Names](http://noiseprotocol.org/noise.html#protocol-names).
@@ -217,5 +223,11 @@ mod tests {
             Token::Psk(_) => {},
             _ => panic!("missing token!")
         }
+    }
+
+    #[test]
+    fn test_aesobfse_mod() {
+        let p: NoiseParams = "Noise_XKaesobfse_25519_ChaChaPoly_SHA256".parse().unwrap();
+        assert!(p.handshake.modifiers.list[0] == HandshakeModifier::AESObfsE);
     }
 }
