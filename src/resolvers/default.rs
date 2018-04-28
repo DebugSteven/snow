@@ -8,7 +8,9 @@ use self::blake2_rfc::blake2b::Blake2b;
 use self::blake2_rfc::blake2s::Blake2s;
 use self::crypto::digest::Digest;
 use self::crypto::sha2::{Sha256, Sha512};
-use self::crypto::aes::KeySize;
+use self::crypto::aes::{KeySize, cbc_decryptor, cbc_encryptor};
+use self::crypto::blockmodes::NoPadding;
+use self::crypto::buffer::{RefReadBuffer, RefWriteBuffer};
 use self::crypto::aes_gcm::AesGcm;
 use self::crypto::aead::{AeadEncryptor, AeadDecryptor};
 use self::rand::{OsRng, RngCore};
@@ -16,9 +18,9 @@ use self::x25519_dalek as x25519;
 
 use byteorder::{ByteOrder, BigEndian, LittleEndian};
 
-use types::{Cipher, Dh, Hash, Random};
+use types::{Cipher, Dh, Hash, Obfusc, Random};
 use constants::TAGLEN;
-use params::{CipherChoice, DHChoice, HashChoice};
+use params::{CipherChoice, DHChoice, HashChoice, ObfuscChoice};
 use std::io::{Cursor, Write};
 use super::CryptoResolver;
 
@@ -53,6 +55,12 @@ impl CryptoResolver for DefaultResolver {
         match *choice {
             CipherChoice::ChaChaPoly => Some(Box::new(CipherChaChaPoly::default())),
             CipherChoice::AESGCM     => Some(Box::new(CipherAESGCM::default())),
+        }
+    }
+
+    fn resolve_obfusc(&self, choice: &ObfuscChoice) -> Option<Box<Obfusc + Send>> {
+        match *choice {
+            ObfuscChoice::AESCBC => Some(Box::new(ObfuscAESCBC::default())),
         }
     }
 }
@@ -99,6 +107,12 @@ struct HashBLAKE2b {
 /// Wraps `blake2-rfc`'s implementation.
 struct HashBLAKE2s {
     hasher: Blake2s
+}
+
+#[derive(Default)]
+pub struct ObfuscAESCBC {
+    key: [u8; 32],
+    iv: [u8; 16],
 }
 
 impl Default for RandomOs {
@@ -372,6 +386,43 @@ impl Hash for HashBLAKE2s {
     fn result(&mut self, out: &mut [u8]) {
         let hash = self.hasher.clone().finalize();
         out[..32].copy_from_slice(hash.as_bytes());
+    }
+}
+
+impl Obfusc for ObfuscAESCBC {
+
+    fn name(&self) -> &'static str {
+        static NAME: &'static str = "AESCBC";
+        NAME
+    }
+
+    fn set(&mut self, key: &[u8], iv: &[u8]) {
+        copy_slices!(key, &mut self.key);
+        copy_slices!(iv, &mut self.iv);
+    }
+
+    fn obfuscate(&mut self, plaintext: &[u8], out: &mut[u8]) -> usize {
+        let mut cipher = cbc_encryptor(KeySize::KeySize256, &self.key, &self.iv, NoPadding);
+        {
+            let mut input = RefReadBuffer::new(&plaintext);
+            let mut output = RefWriteBuffer::new(out);
+            cipher.encrypt(&mut input, &mut output, true).unwrap();
+        }
+        self.iv.copy_from_slice(&out[out.len() - 16..]);
+        out.len()
+    }
+
+    fn deobfuscate(&mut self, obfusctext: &[u8], out: &mut[u8]) -> Result<usize, ()> {
+        let mut cipher = cbc_decryptor(KeySize::KeySize256, &self.key, &self.iv, NoPadding);
+        let mut input = RefReadBuffer::new(&obfusctext);
+        let mut output = RefWriteBuffer::new(out);
+        match cipher.decrypt(&mut input, &mut output, true) {
+            Ok(_) => {
+                self.iv.copy_from_slice(&obfusctext[obfusctext.len() - 16..]);
+                Ok(obfusctext.len())
+            }
+            Err(_) => Err(()),
+        }
     }
 }
 
