@@ -10,6 +10,8 @@ use params::*;
 use failure::Error;
 use error::{SnowError, InitStage, Prerequisite};
 
+use std::collections::HashMap;
+
 #[cfg(feature = "ring-resolver" )] use wrappers::ring_wrapper::RingAcceleratedResolver;
 
 /// An object that resolves the providers of Noise crypto choices
@@ -74,6 +76,7 @@ pub struct NoiseBuilder<'builder> {
     e_fixed:  Option<&'builder [u8]>,
     rs:       Option<&'builder [u8]>,
     psks:     [Option<&'builder [u8]>; 10],
+    labels:   Option<&'builder [String]>,
     plog:     Option<&'builder [u8]>,
 }
 
@@ -107,12 +110,20 @@ impl<'builder> NoiseBuilder<'builder> {
             rs: None,
             plog: None,
             psks: [None; 10],
+            labels: None,
         }
     }
 
     /// Specify a PSK (only used with `NoisePSK` base parameter)
     pub fn psk(mut self, location: u8, key: &'builder [u8]) -> Self {
         self.psks[location as usize] = Some(key);
+        self
+    }
+
+    /// Specify labels of key chains to generate on handshake completion.
+    /// Key chains will be returned in the order these labels are provided.
+    pub fn key_chain_labels(mut self, labels: &'builder [String]) -> Self {
+        self.labels = Some(labels);
         self
     }
 
@@ -221,11 +232,20 @@ impl<'builder> NoiseBuilder<'builder> {
             }
         }
 
+        let mut key_chains = HashMap::new();
+        if let Some(l) = self.labels {
+            key_chains = HashMap::with_capacity(l.len());
+            for label in l {
+                key_chains.insert(label.clone(), [0u8; MAXHASHLEN]);
+            }
+        }
+
         let hs = HandshakeState::new(rng, handshake_cipherstate, hash,
                                      s, e, self.e_fixed.is_some(), rs, re,
                                      initiator,
                                      self.params,
                                      psks,
+                                     key_chains,
                                      self.plog.unwrap_or_else(|| &[0u8; 0]),
                                      cipherstates)?;
         Ok(hs.into())

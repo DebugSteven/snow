@@ -3,6 +3,8 @@ use constants::*;
 use types::*;
 use cipherstate::*;
 
+use std::collections::HashMap;
+
 pub trait SymmetricStateType {
     fn cipher_name(&self) -> &'static str;
     fn hash_name(&self) -> &'static str;
@@ -13,7 +15,7 @@ pub trait SymmetricStateType {
     fn has_key(&self) -> bool;
     fn encrypt_and_mix_hash(&mut self, plaintext: &[u8], out: &mut [u8]) -> usize;
     fn decrypt_and_mix_hash(&mut self, data: &[u8], out: &mut [u8]) -> Result<usize, ()>;
-    fn split(&mut self, child1: &mut CipherState, child2: &mut CipherState);
+    fn split(&mut self, child1: &mut CipherState, child2: &mut CipherState, key_chains: &mut HashMap<String, [u8; MAXHASHLEN]>);
 }
 
 pub struct SymmetricState {
@@ -34,6 +36,10 @@ impl SymmetricState {
             ck : [0u8; MAXHASHLEN],
             has_key: false,
         }
+    }
+
+    pub fn into_hasher(self) -> Box<Hash + Send> {
+        self.hasher
     }
 }
 
@@ -118,15 +124,18 @@ impl SymmetricStateType for SymmetricState {
         Ok(payload_len)
     }
 
-    fn split(&mut self, child1: &mut CipherState, child2: &mut CipherState) {
+    fn split(&mut self, child1: &mut CipherState, child2: &mut CipherState, key_chains: &mut HashMap<String, [u8; MAXHASHLEN]>) {
         let hash_len = self.hasher.hash_len();
-        let mut hkdf_output = ([0u8; MAXHASHLEN], [0u8; MAXHASHLEN]);
-        self.hasher.hkdf(&self.ck[..hash_len], &[0u8; 0], 2,
+        let mut hkdf_output = ([0u8; MAXHASHLEN], [0u8; MAXHASHLEN], [0u8; MAXHASHLEN]);
+        self.hasher.hkdf(&self.ck[..hash_len], &[0u8; 0], 3,
                          &mut hkdf_output.0,
                          &mut hkdf_output.1,
-                         &mut []);
+                         &mut hkdf_output.2);
         child1.set(&hkdf_output.0[..CIPHERKEYLEN], 0);
         child2.set(&hkdf_output.1[..CIPHERKEYLEN], 0);
+        for (label, ck) in key_chains.iter_mut() {
+            self.hasher.hmac(&hkdf_output.2, label.as_bytes(), ck);
+        }
     }
 
 }

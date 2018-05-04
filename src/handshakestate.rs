@@ -9,6 +9,8 @@ use params::*;
 use failure::Error;
 use error::{SnowError, InitStage, StateProblem};
 
+use std::collections::HashMap;
+
 
 /// A state machine encompassing the handshake phase of a Noise session.
 ///
@@ -28,6 +30,7 @@ pub struct HandshakeState {
     initiator: bool,
     params: NoiseParams,
     psks: [Option<[u8; PSKLEN]>; 10],
+    key_chains: HashMap<String, [u8; MAXHASHLEN]>,
     my_turn: bool,
     message_patterns: MessagePatterns,
 }
@@ -46,6 +49,7 @@ impl HandshakeState {
         initiator: bool,
         params: NoiseParams,
         psks: [Option<[u8; PSKLEN]>; 10],
+        key_chains: HashMap<String, [u8; MAXHASHLEN]>,
         prologue: &[u8],
         cipherstates: CipherStates) -> Result<HandshakeState, Error> {
 
@@ -108,6 +112,7 @@ impl HandshakeState {
             initiator: initiator,
             params: params,
             psks: psks,
+            key_chains: key_chains,
             my_turn: initiator,
             message_patterns: tokens.msg_patterns.into(),
         })
@@ -213,7 +218,7 @@ impl HandshakeState {
             bail!(SnowError::Input);
         }
         if last {
-            self.symmetricstate.split(&mut self.cipherstates.0, &mut self.cipherstates.1);
+            self.symmetricstate.split(&mut self.cipherstates.0, &mut self.cipherstates.1, &mut self.key_chains);
         }
         Ok(byte_index)
     }
@@ -279,7 +284,7 @@ impl HandshakeState {
         self.symmetricstate.decrypt_and_mix_hash(ptr, payload).map_err(|_| SnowError::Decrypt)?;
         self.my_turn = true;
         if last {
-            self.symmetricstate.split(&mut self.cipherstates.0, &mut self.cipherstates.1);
+            self.symmetricstate.split(&mut self.cipherstates.0, &mut self.cipherstates.1, &mut self.key_chains);
         }
         let payload_len = if self.symmetricstate.has_key() { ptr.len() - TAGLEN } else { ptr.len() };
         Ok(payload_len)
@@ -300,10 +305,29 @@ impl HandshakeState {
         self.rs.as_option_ref().map(|rs| &rs[..self.dh_len()])
     }
 
-    pub fn finish(self) -> Result<(CipherStates, HandshakeChoice, usize, Toggle<[u8; MAXDHLEN]>), Error> {
+    pub fn finish(
+        self,
+    ) -> Result<
+        (
+            CipherStates,
+            HandshakeChoice,
+            usize,
+            Toggle<[u8; MAXDHLEN]>,
+            Box<Hash + Send>,
+            HashMap<String, [u8; MAXHASHLEN]>,
+        ),
+        Error,
+    > {
         if self.is_finished() {
             let dh_len = self.dh_len();
-            Ok((self.cipherstates, self.params.handshake, dh_len, self.rs))
+            Ok((
+                self.cipherstates,
+                self.params.handshake,
+                dh_len,
+                self.rs,
+                self.symmetricstate.into_hasher(),
+                self.key_chains,
+            ))
         } else {
             bail!(SnowError::State { reason: StateProblem::HandshakeNotFinished });
         }

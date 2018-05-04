@@ -1,3 +1,4 @@
+use constants::MAXHASHLEN;
 use failure::Error;
 use error::{SnowError, StateProblem};
 use handshakestate::HandshakeState;
@@ -172,6 +173,19 @@ impl Session {
         }
     }
 
+    /// Get the next key from the key chain corresponding to the given label.
+    ///
+    /// # Errors
+    ///
+    /// Will result in `NoiseError::StateError` if the handshake is not finished,
+    /// or if the label was not provided to `NoiseBuilder`.
+    pub fn key_from_chain(&mut self, label: &String) -> Result<[u8; MAXHASHLEN], Error> {
+        match *self {
+            Session::Handshake(_) => bail!(SnowError::State { reason: StateProblem::HandshakeNotFinished }),
+            Session::Transport(ref mut state) => state.key_from_chain(label),
+        }
+    }
+
     /// Transition the session into transport mode. This can only be done once the handshake
     /// has finished.
     ///
@@ -218,8 +232,8 @@ impl TryFrom<HandshakeState> for TransportState {
 
     fn try_from(old: HandshakeState) -> Result<Self, Error> {
         let initiator = old.is_initiator();
-        let (cipherstates, handshake, dh_len, rs) = old.finish()?;
-        Ok(TransportState::new(cipherstates, handshake.pattern, dh_len, rs, initiator))
+        let (cipherstates, handshake, dh_len, rs, hasher, key_chains) = old.finish()?;
+        Ok(TransportState::new(cipherstates, handshake.pattern, dh_len, rs, hasher, key_chains, initiator))
     }
 }
 
