@@ -14,6 +14,7 @@ pub trait SymmetricStateType {
     fn encrypt_and_mix_hash(&mut self, plaintext: &[u8], out: &mut [u8]) -> usize;
     fn decrypt_and_mix_hash(&mut self, data: &[u8], out: &mut [u8]) -> Result<usize, ()>;
     fn split(&mut self, child1: &mut CipherState, child2: &mut CipherState);
+    fn split_ak(&mut self, child1: &mut CipherState, child2: &mut CipherState, child3: &mut [u8], child4: &mut [u8]);
 }
 
 pub struct SymmetricState {
@@ -63,7 +64,7 @@ impl SymmetricStateType for SymmetricState {
     fn mix_key(&mut self, data: &[u8]) {
         let hash_len = self.hasher.hash_len();
         let mut hkdf_output = ([0u8; MAXHASHLEN], [0u8; MAXHASHLEN]);
-        self.hasher.hkdf(&self.ck[..hash_len], data, 2, &mut hkdf_output.0, &mut hkdf_output.1, &mut []);
+        self.hasher.hkdf(&self.ck[..hash_len], data, 2, &mut hkdf_output.0, &mut hkdf_output.1, &mut [], &mut []);
         copy_memory(&hkdf_output.0, &mut self.ck);
         self.cipherstate.set(&hkdf_output.1[..CIPHERKEYLEN], 0);
         self.has_key = true;
@@ -80,7 +81,7 @@ impl SymmetricStateType for SymmetricState {
     fn mix_key_and_hash(&mut self, data: &[u8]) {
         let hash_len = self.hasher.hash_len();
         let mut hkdf_output = ([0u8; MAXHASHLEN], [0u8; MAXHASHLEN], [0u8; MAXHASHLEN]);
-        self.hasher.hkdf(&self.ck[..hash_len], data, 3, &mut hkdf_output.0, &mut hkdf_output.1, &mut hkdf_output.2);
+        self.hasher.hkdf(&self.ck[..hash_len], data, 3, &mut hkdf_output.0, &mut hkdf_output.1, &mut hkdf_output.2, &mut []);
         copy_memory(&hkdf_output.0, &mut self.ck);
         self.mix_hash(&hkdf_output.1[..hash_len]);
         self.cipherstate.set(&hkdf_output.2[..CIPHERKEYLEN], 0);
@@ -124,7 +125,25 @@ impl SymmetricStateType for SymmetricState {
         self.hasher.hkdf(&self.ck[..hash_len], &[0u8; 0], 2,
                          &mut hkdf_output.0,
                          &mut hkdf_output.1,
+                         &mut [],
                          &mut []);
+        child1.set(&hkdf_output.0[..CIPHERKEYLEN], 0);
+        child2.set(&hkdf_output.1[..CIPHERKEYLEN], 0);
+    }
+
+    fn split_ak(
+        &mut self,
+        child1: &mut CipherState,
+        child2: &mut CipherState,
+        child3: &mut [u8],
+        child4: &mut [u8],
+    ) {
+        let hash_len = self.hasher.hash_len();
+        let mut hkdf_output = ([0u8; MAXHASHLEN], [0u8; MAXHASHLEN]);
+        self.hasher.hkdf(&self.ck[..hash_len], &[0u8; 0], 4,
+                         &mut hkdf_output.0,
+                         &mut hkdf_output.1,
+                         child3, child4);
         child1.set(&hkdf_output.0[..CIPHERKEYLEN], 0);
         child2.set(&hkdf_output.1[..CIPHERKEYLEN], 0);
     }
