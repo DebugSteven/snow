@@ -6,6 +6,7 @@ use cipherstate::*;
 pub trait SymmetricStateType {
     fn cipher_name(&self) -> &'static str;
     fn hash_name(&self) -> &'static str;
+    fn hash_len(&self) -> usize;
     fn initialize(&mut self, handshake_name: &str);
     fn mix_key(&mut self, data: &[u8]);
     fn mix_hash(&mut self, data: &[u8]);
@@ -46,6 +47,10 @@ impl SymmetricStateType for SymmetricState {
 
     fn hash_name(&self) -> &'static str {
         self.hasher.name()
+    }
+
+    fn hash_len(&self) -> usize {
+        self.hasher.hash_len()
     }
 
     fn initialize(&mut self, handshake_name: &str) {

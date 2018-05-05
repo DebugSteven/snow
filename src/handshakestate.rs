@@ -28,6 +28,7 @@ pub struct HandshakeState {
     initiator: bool,
     params: NoiseParams,
     psks: [Option<[u8; PSKLEN]>; 10],
+    aks: ([u8; MAXHASHLEN], [u8; MAXHASHLEN]),
     my_turn: bool,
     message_patterns: MessagePatterns,
 }
@@ -108,6 +109,7 @@ impl HandshakeState {
             initiator: initiator,
             params: params,
             psks: psks,
+            aks: ([0u8; MAXHASHLEN], [0u8; MAXHASHLEN]),
             my_turn: initiator,
             message_patterns: tokens.msg_patterns.into(),
         })
@@ -213,7 +215,7 @@ impl HandshakeState {
             bail!(SnowError::Input);
         }
         if last {
-            self.symmetricstate.split(&mut self.cipherstates.0, &mut self.cipherstates.1);
+            self.symmetricstate.split_ak(&mut self.cipherstates.0, &mut self.cipherstates.1, &mut self.aks.0, &mut self.aks.1);
         }
         Ok(byte_index)
     }
@@ -279,7 +281,7 @@ impl HandshakeState {
         self.symmetricstate.decrypt_and_mix_hash(ptr, payload).map_err(|_| SnowError::Decrypt)?;
         self.my_turn = true;
         if last {
-            self.symmetricstate.split(&mut self.cipherstates.0, &mut self.cipherstates.1);
+            self.symmetricstate.split_ak(&mut self.cipherstates.0, &mut self.cipherstates.1, &mut self.aks.0, &mut self.aks.1);
         }
         let payload_len = if self.symmetricstate.has_key() { ptr.len() - TAGLEN } else { ptr.len() };
         Ok(payload_len)
@@ -298,6 +300,11 @@ impl HandshakeState {
  
     pub fn get_remote_static(&self) -> Option<&[u8]> {
         self.rs.as_option_ref().map(|rs| &rs[..self.dh_len()])
+    }
+
+    pub fn get_aks(&self) -> (&[u8], &[u8]) {
+        let hash_len = self.symmetricstate.hash_len();
+        (&self.aks.0[..hash_len], &self.aks.1[..hash_len])
     }
 
     pub fn finish(self) -> Result<(CipherStates, HandshakeChoice, usize, Toggle<[u8; MAXDHLEN]>), Error> {

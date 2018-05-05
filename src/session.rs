@@ -172,6 +172,18 @@ impl Session {
         }
     }
 
+    /// Get the additional keys from the finished handshake.
+    ///
+    /// # Errors
+    ///
+    /// Will result in `NoiseError::StateError` if in transport mode.
+    pub fn get_aks(&self) -> Result<(&[u8], &[u8]), Error> {
+        match *self {
+            Session::Handshake(ref state) => Ok(state.get_aks()),
+            Session::Transport(_) => bail!(SnowError::State { reason: StateProblem::HandshakeAlreadyFinished }),
+        }
+    }
+
     /// Transition the session into transport mode. This can only be done once the handshake
     /// has finished.
     ///
