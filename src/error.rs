@@ -55,6 +55,7 @@ pub enum PatternProblem {
     UnsupportedDhType,
     UnsupportedCipherType,
     InvalidPsk,
+    InvalidHs,
     UnsupportedModifier,
 }
 
@@ -78,6 +79,7 @@ pub enum InitStage {
     GetHashImpl,
     GetObfuscImpl,
     ValidatePskPosition,
+    ValidateHsPosition,
 }
 
 impl From<InitStage> for SnowError {
@@ -107,6 +109,7 @@ impl From<Prerequisite> for SnowError {
 pub enum StateProblem {
     MissingKeyMaterial,
     MissingPsk,
+    MissingH,
     NotTurnToWrite,
     NotTurnToRead,
     HandshakeNotFinished,
