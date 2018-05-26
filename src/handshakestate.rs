@@ -28,6 +28,7 @@ pub struct HandshakeState {
     pub(crate) params           : NoiseParams,
     pub(crate) psks             : [Option<[u8; PSKLEN]>; 10],
     pub(crate) obfse            : Option<Box<Obfusc + Send>>,
+    pub(crate) hs               : [Option<Vec<u8>>; 9],
     pub(crate) my_turn          : bool,
     pub(crate) message_patterns : MessagePatterns,
     pub(crate) pattern_position : usize,
@@ -111,6 +112,7 @@ impl HandshakeState {
             params,
             psks,
             obfse,
+            hs: [None, None, None, None, None, None, None, None, None],
             my_turn: initiator,
             message_patterns: tokens.msg_patterns,
             pattern_position: 0,
@@ -232,6 +234,16 @@ impl HandshakeState {
                     let dh_out = self.dh(true, true)?;
                     self.symmetricstate.mix_key(&dh_out[..dh_len]);
                 }
+                Token::H(n) => {
+                    match self.hs[*n as usize - 1] {
+                        Some(ref data) => {
+                            self.symmetricstate.mix_hash(&data);
+                        },
+                        None => {
+                            bail!(StateProblem::MissingH);
+                        }
+                    }
+                }
             }
         }
 
@@ -339,6 +351,16 @@ impl HandshakeState {
                     let dh_out = self.dh(true, true)?;
                     self.symmetricstate.mix_key(&dh_out[..dh_len]);
                 }
+                Token::H(n) => {
+                    match self.hs[n as usize - 1] {
+                        Some(ref data) => {
+                            self.symmetricstate.mix_hash(&data);
+                        },
+                        None => {
+                            bail!(StateProblem::MissingH);
+                        }
+                    }
+                }
             }
         }
 
@@ -361,6 +383,19 @@ impl HandshakeState {
         let mut new_psk = [0u8; PSKLEN];
         new_psk.copy_from_slice(&key[..]);
         self.psks[location as usize] = Some(new_psk);
+
+        Ok(())
+    }
+
+    /// Set the H data at the specified position.
+    #[must_use]
+    pub fn set_h_data(&mut self, location: usize, data: &[u8]) -> Result<(), SnowError> {
+        if location == 0 || self.hs.len() < location {
+            bail!(SnowError::Input);
+        }
+
+        let new_data = Vec::from(data);
+        self.hs[location - 1] = Some(new_data);
 
         Ok(())
     }

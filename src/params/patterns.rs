@@ -1,6 +1,6 @@
 #[cfg(feature = "nightly")] use std::convert::{TryFrom};
 #[cfg(not(feature = "nightly"))] use utils::{TryFrom};
-use error::{SnowError, PatternProblem};
+use error::{SnowError, InitStage, PatternProblem};
 use std::str::FromStr;
 use smallvec::SmallVec;
 
@@ -78,7 +78,7 @@ macro_rules! pattern_enum {
 /// See: http://noiseprotocol.org/noise.html#handshake-patterns
 #[allow(missing_docs)]
 #[derive(Copy, Clone, PartialEq, Debug)]
-pub(crate) enum Token { E, S, Dhee, Dhes, Dhse, Dhss, Psk(u8) }
+pub(crate) enum Token { E, S, Dhee, Dhes, Dhse, Dhss, Psk(u8), H(u8) }
 
 // See the documentation in the macro above.
 pattern_enum! {
@@ -148,6 +148,9 @@ pub enum HandshakeModifier {
     /// Obfuscate the ephemerals using AES
     AESObfsE,
 
+    /// Insert an H to mix at the start of the associated position
+    Hs(u8),
+
     /// Modify the base pattern to its "fallback" form
     Fallback
 }
@@ -164,6 +167,10 @@ impl FromStr for HandshakeModifier {
             Ok(HandshakeModifier::Fallback)
         } else if s == "aesobfse" {
             Ok(HandshakeModifier::AESObfsE)
+        } else if s.starts_with("hs") {
+            Ok(HandshakeModifier::Hs((&s[2..])
+                .parse()
+                .map_err(|_| PatternProblem::InvalidHs)?))
         } else {
             bail!(PatternProblem::UnsupportedModifier);
         }
@@ -483,6 +490,15 @@ impl<'a> TryFrom<&'a HandshakeChoice> for HandshakeTokens {
                     _ => {
                         let i = (*n as usize) - 1;
                         patterns.2[i].push(Token::Psk(*n));
+                    }
+                }
+            }
+            if let HandshakeModifier::Hs(n) = modifier {
+                match n {
+                    0 => bail!(InitStage::ValidateHsPosition),
+                    _ => {
+                        let i = (*n as usize) - 1;
+                        patterns.2[i].insert(0, Token::H(*n));
                     }
                 }
             }

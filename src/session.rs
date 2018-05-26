@@ -295,6 +295,21 @@ impl Session {
         }
     }
 
+    /// Set the data to be authenticated at the specified location. It is up to
+    /// the caller to correctly set the location based on the specified
+    /// handshake - Snow won't stop you from placing data in an unused slot.
+    ///
+    /// # Errors
+    ///
+    /// Will result in `SnowError::Input` if the location is out of bounds.
+    /// Will result in `SnowError::StateError` if in transport mode.
+    pub fn set_h_data(&mut self, location: usize, data: &[u8]) -> Result<(), SnowError> {
+        match *self {
+            Session::Handshake(ref mut state) => state.set_h_data(location, data),
+            _                                 => bail!(StateProblem::HandshakeAlreadyFinished),
+        }
+    }
+
     /// Transition the session into transport mode. This can only be done once the handshake
     /// has finished.
     ///
