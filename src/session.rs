@@ -172,6 +172,18 @@ impl Session {
         }
     }
 
+    /// Authenticate the provided data as part of the handshake.
+    ///
+    /// # Errors
+    ///
+    /// Will result in `NoiseError::StateError` if in transport mode.
+    pub fn authenticate_data(&mut self, data: &[u8]) -> Result<(), Error> {
+        match *self {
+            Session::Handshake(ref mut state) => state.authenticate_data(data),
+            Session::Transport(_) => bail!(SnowError::State { reason: StateProblem::HandshakeAlreadyFinished }),
+        }
+    }
+
     /// Transition the session into transport mode. This can only be done once the handshake
     /// has finished.
     ///

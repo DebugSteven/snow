@@ -296,6 +296,15 @@ impl HandshakeState {
         Ok(())
     }
  
+    pub fn authenticate_data(&mut self, data: &[u8]) -> Result<(), Error> {
+        if self.is_finished() {
+            bail!(SnowError::State { reason: StateProblem::HandshakeAlreadyFinished });
+        } else {
+            self.symmetricstate.mix_hash(data);
+            Ok(())
+        }
+    }
+
     pub fn get_remote_static(&self) -> Option<&[u8]> {
         self.rs.as_option_ref().map(|rs| &rs[..self.dh_len()])
     }
