@@ -28,6 +28,7 @@ pub struct HandshakeState {
     initiator: bool,
     params: NoiseParams,
     psks: [Option<[u8; PSKLEN]>; 10],
+    pending_h: bool,
     my_turn: bool,
     message_patterns: MessagePatterns,
 }
@@ -108,6 +109,7 @@ impl HandshakeState {
             initiator: initiator,
             params: params,
             psks: psks,
+            pending_h: false,
             my_turn: initiator,
             message_patterns: tokens.msg_patterns.into(),
         })
@@ -144,7 +146,7 @@ impl HandshakeState {
     pub fn write_handshake_message(&mut self,
                          payload: &[u8], 
                          message: &mut [u8]) -> Result<usize, Error> {
-        if !self.my_turn {
+        if !self.my_turn || self.pending_h {
             bail!(SnowError::State{ reason: StateProblem::NotTurnToWrite });
         }
 
@@ -201,6 +203,7 @@ impl HandshakeState {
                 Token::Dhes => self.dh(false, true )?,
                 Token::Dhse => self.dh(true,  false)?,
                 Token::Dhss => self.dh(true,  true )?,
+                Token::H => self.pending_h = true,
             }
         }
 
@@ -212,7 +215,7 @@ impl HandshakeState {
         if byte_index > MAXMSGLEN {
             bail!(SnowError::Input);
         }
-        if last {
+        if last && !self.pending_h {
             self.symmetricstate.split(&mut self.cipherstates.0, &mut self.cipherstates.1);
         }
         Ok(byte_index)
@@ -223,6 +226,9 @@ impl HandshakeState {
                         payload: &mut [u8]) -> Result<usize, Error> {
         if message.len() > MAXMSGLEN {
             bail!(SnowError::Input);
+        }
+        if self.pending_h {
+            bail!(SnowError::State { reason: StateProblem::NotTurnToRead });
         }
 
         let next_tokens = if self.message_patterns.len() > 0 {
@@ -273,12 +279,13 @@ impl HandshakeState {
                     Token::Dhes => self.dh(true, false)?,
                     Token::Dhse => self.dh(false, true)?,
                     Token::Dhss => self.dh(true, true)?,
+                    Token::H => self.pending_h = true,
                 }
             }
         }
         self.symmetricstate.decrypt_and_mix_hash(ptr, payload).map_err(|_| SnowError::Decrypt)?;
         self.my_turn = true;
-        if last {
+        if last && !self.pending_h {
             self.symmetricstate.split(&mut self.cipherstates.0, &mut self.cipherstates.1);
         }
         let payload_len = if self.symmetricstate.has_key() { ptr.len() - TAGLEN } else { ptr.len() };
@@ -297,10 +304,14 @@ impl HandshakeState {
     }
  
     pub fn authenticate_data(&mut self, data: &[u8]) -> Result<(), Error> {
-        if self.is_finished() {
-            bail!(SnowError::State { reason: StateProblem::HandshakeAlreadyFinished });
+        if !self.pending_h {
+            bail!(SnowError::State { reason: StateProblem::InvalidH });
         } else {
             self.symmetricstate.mix_hash(data);
+            self.pending_h = false;
+            if self.is_finished() {
+                self.symmetricstate.split(&mut self.cipherstates.0, &mut self.cipherstates.1);
+            }
             Ok(())
         }
     }

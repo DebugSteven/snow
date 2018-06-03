@@ -24,7 +24,7 @@ macro_rules! message_vec {
 ///
 /// See: http://noiseprotocol.org/noise.html#handshake-patterns
 #[derive(Copy, Clone, PartialEq, Debug)]
-pub enum Token { E, S, Dhee, Dhes, Dhse, Dhss, Psk(u8) }
+pub enum Token { E, S, Dhee, Dhes, Dhse, Dhss, Psk(u8), H }
 
 /// One of the patterns as defined in the
 /// [Handshake Pattern](http://noiseprotocol.org/noise.html#handshake-patterns) section
@@ -75,7 +75,7 @@ impl HandshakePattern {
 }
 
 #[derive(Copy, Clone, PartialEq, Debug)]
-pub enum HandshakeModifier { Psk(u8), Fallback }
+pub enum HandshakeModifier { Psk(u8), Fallback, H(u8) }
 
 impl FromStr for HandshakeModifier {
     type Err = &'static str;
@@ -85,6 +85,8 @@ impl FromStr for HandshakeModifier {
             Ok(HandshakeModifier::Psk((&s[3..]).parse().map_err(|_| "psk must have number parameter")?))
         } else if s == "fallback" {
             Ok(HandshakeModifier::Fallback)
+        } else if s.starts_with("h") {
+            Ok(HandshakeModifier::H((&s[1..]).parse().map_err(|_| "h must have number parameter")?))
         } else {
             Err("unrecognized or invalid modifier")
         }
@@ -318,6 +320,17 @@ impl TryFrom<HandshakeChoice> for HandshakeTokens {
                         let i = (n as usize) - 1;
                         if patterns.2[i].try_push(Token::Psk(n)).is_err() {
                             bail!(SnowError::Init{ reason: InitStage::ValidatePskPosition });
+                        }
+                    }
+                }
+            }
+            if let HandshakeModifier::H(n) = modifier {
+                match n {
+                    0 => bail!(SnowError::Init{ reason: InitStage::ValidateHPosition }),
+                    _ => {
+                        let i = (n as usize) - 1;
+                        if patterns.2[i].try_push(Token::H).is_err() {
+                            bail!(SnowError::Init{ reason: InitStage::ValidateHPosition });
                         }
                     }
                 }
