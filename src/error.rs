@@ -26,7 +26,8 @@ pub enum SnowError {
 #[derive(Debug)]
 pub enum InitStage {
     ValidateKeyLengths, ValidatePskLengths, ValidateCipherTypes,
-    GetRngImpl, GetDhImpl, GetCipherImpl, GetHashImpl, ValidatePskPosition
+    GetRngImpl, GetDhImpl, GetCipherImpl, GetHashImpl, ValidatePskPosition,
+    HashLengthTooShortForASK
 }
 
 /// A prerequisite that may be missing.
@@ -39,6 +40,7 @@ pub enum Prerequisite {
 #[derive(Debug)]
 pub enum StateProblem {
     MissingKeyMaterial, MissingPsk, NotTurnToWrite, NotTurnToRead,
+    ASKNotEnabled, ASKMasterKeyNotReady, ASKNotInitialized,
     HandshakeNotFinished, HandshakeAlreadyFinished, OneWay
 }
 

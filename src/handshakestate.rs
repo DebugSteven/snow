@@ -49,6 +49,7 @@ impl HandshakeState {
         params          : NoiseParams,
         psks            : [Option<[u8; PSKLEN]>; 10],
         prologue        : &[u8],
+        enable_ask      : bool,
         cipherstates    : CipherStates) -> Result<HandshakeState, Error> {
 
         if (s.is_on() && e.is_on()  && s.pub_len() != e.pub_len())
@@ -60,7 +61,7 @@ impl HandshakeState {
 
         let tokens = HandshakeTokens::try_from(&params.handshake)?;
 
-        let mut symmetricstate = SymmetricState::new(cipherstate, hasher);
+        let mut symmetricstate = SymmetricState::new(cipherstate, hasher, enable_ask);
 
         symmetricstate.initialize(&params.name);
         symmetricstate.mix_hash(prologue);
@@ -300,6 +301,16 @@ impl HandshakeState {
         self.psks[location as usize] = Some(new_psk);
 
         Ok(())
+    }
+
+    pub fn initialize_ask(&mut self, labels: Vec<String>) -> Result<(), Error> {
+        self.symmetricstate.create_chains(labels)
+    }
+
+    pub fn get_ask(&mut self, label: &String) -> Result<[u8; ASKLEN], Error> {
+        let mut ask = [0u8; ASKLEN];
+        self.symmetricstate.invoke_chain(label, &mut ask)?;
+        Ok(ask)
     }
  
     pub fn get_remote_static(&self) -> Option<&[u8]> {

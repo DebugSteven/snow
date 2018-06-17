@@ -2,6 +2,10 @@ use utils::*;
 use constants::*;
 use types::*;
 use cipherstate::*;
+use failure::Error;
+use error::{SnowError, StateProblem};
+
+use std::collections::HashMap;
 
 pub trait SymmetricStateType {
     fn cipher_name(&self) -> &'static str;
@@ -14,6 +18,8 @@ pub trait SymmetricStateType {
     fn encrypt_and_mix_hash(&mut self, plaintext: &[u8], out: &mut [u8]) -> usize;
     fn decrypt_and_mix_hash(&mut self, data: &[u8], out: &mut [u8]) -> Result<usize, ()>;
     fn split(&mut self, child1: &mut CipherState, child2: &mut CipherState);
+    fn create_chains(&mut self, labels: Vec<String>) -> Result<(), Error>;
+    fn invoke_chain(&mut self, label: &String, out: &mut [u8]) -> Result<(), Error>;
 }
 
 pub struct SymmetricState {
@@ -22,10 +28,13 @@ pub struct SymmetricState {
     h : [u8; MAXHASHLEN],
     ck: [u8; MAXHASHLEN],
     has_key: bool,
+    enable_ask: bool,
+    ask_master: Option<[u8; MAXHASHLEN]>,
+    ask_chains: Option<HashMap<String, [u8; MAXHASHLEN]>>,
 }
 
 impl SymmetricState {
-    pub fn new(cipherstate: CipherState, hasher: Box<Hash + Send>) -> SymmetricState
+    pub fn new(cipherstate: CipherState, hasher: Box<Hash + Send>, enable_ask: bool) -> SymmetricState
     {
         SymmetricState {
             cipherstate,
@@ -33,6 +42,9 @@ impl SymmetricState {
             h: [0u8; MAXHASHLEN],
             ck : [0u8; MAXHASHLEN],
             has_key: false,
+            enable_ask: enable_ask,
+            ask_master: None,
+            ask_chains: None,
         }
     }
 }
@@ -61,9 +73,16 @@ impl SymmetricStateType for SymmetricState {
     }
 
     fn mix_key(&mut self, data: &[u8]) {
+        if self.enable_ask {
+            if let None = self.ask_master {
+                self.ask_master = Some([0u8; MAXHASHLEN]);
+            }
+        }
+
         let hash_len = self.hasher.hash_len();
         let mut hkdf_output = ([0u8; MAXHASHLEN], [0u8; MAXHASHLEN]);
-        self.hasher.hkdf(&self.ck[..hash_len], data, 2, &mut hkdf_output.0, &mut hkdf_output.1, &mut []);
+        self.hasher.hkdf(&self.ck[..hash_len], data, self.ask_master.as_mut().map(|a| &mut a[..]),
+                         2, &mut hkdf_output.0, &mut hkdf_output.1, &mut []);
         copy_memory(&hkdf_output.0, &mut self.ck);
         self.cipherstate.set(&hkdf_output.1[..CIPHERKEYLEN], 0);
         self.has_key = true;
@@ -78,9 +97,16 @@ impl SymmetricStateType for SymmetricState {
     }
 
     fn mix_key_and_hash(&mut self, data: &[u8]) {
+        if self.enable_ask {
+            if let None = self.ask_master {
+                self.ask_master = Some([0u8; MAXHASHLEN]);
+            }
+        }
+
         let hash_len = self.hasher.hash_len();
         let mut hkdf_output = ([0u8; MAXHASHLEN], [0u8; MAXHASHLEN], [0u8; MAXHASHLEN]);
-        self.hasher.hkdf(&self.ck[..hash_len], data, 3, &mut hkdf_output.0, &mut hkdf_output.1, &mut hkdf_output.2);
+        self.hasher.hkdf(&self.ck[..hash_len], data, self.ask_master.as_mut().map(|a| &mut a[..]),
+                         3, &mut hkdf_output.0, &mut hkdf_output.1, &mut hkdf_output.2);
         copy_memory(&hkdf_output.0, &mut self.ck);
         self.mix_hash(&hkdf_output.1[..hash_len]);
         self.cipherstate.set(&hkdf_output.2[..CIPHERKEYLEN], 0);
@@ -119,14 +145,67 @@ impl SymmetricStateType for SymmetricState {
     }
 
     fn split(&mut self, child1: &mut CipherState, child2: &mut CipherState) {
+        if self.enable_ask {
+            if let None = self.ask_master {
+                self.ask_master = Some([0u8; MAXHASHLEN]);
+            }
+        }
+
         let hash_len = self.hasher.hash_len();
         let mut hkdf_output = ([0u8; MAXHASHLEN], [0u8; MAXHASHLEN]);
-        self.hasher.hkdf(&self.ck[..hash_len], &[0u8; 0], 2,
+        self.hasher.hkdf(&self.ck[..hash_len], &[0u8; 0], self.ask_master.as_mut().map(|a| &mut a[..]), 2,
                          &mut hkdf_output.0,
                          &mut hkdf_output.1,
                          &mut []);
         child1.set(&hkdf_output.0[..CIPHERKEYLEN], 0);
         child2.set(&hkdf_output.1[..CIPHERKEYLEN], 0);
+    }
+
+    fn create_chains(&mut self, labels: Vec<String>) -> Result<(), Error> {
+        ensure!(self.enable_ask, SnowError::State { reason: StateProblem::ASKNotEnabled });
+        if let Some(ask_master) = self.ask_master {
+            let hash_len = self.hasher.hash_len();
+            let mut ask_chains = HashMap::with_capacity(labels.len());
+            for label in labels {
+                let label_len = label.as_bytes().len();
+                let mut input = Vec::with_capacity(hash_len + label_len);
+                input.extend_from_slice(&self.h[..hash_len]);
+                input.extend_from_slice(label.as_bytes());
+                let mut hkdf_output = ([0u8; MAXHASHLEN], [0u8; MAXHASHLEN]);
+                self.hasher.hkdf(&ask_master[..hash_len], &input[..hash_len + label_len], None, 2,
+                                 &mut hkdf_output.0,
+                                 &mut hkdf_output.1,
+                                 &mut []);
+                ask_chains.insert(label, hkdf_output.0);
+            }
+            self.ask_chains = Some(ask_chains);
+            self.ask_master = None;
+            Ok(())
+        } else {
+            bail!(SnowError::State { reason: StateProblem::ASKMasterKeyNotReady })
+        }
+    }
+
+    fn invoke_chain(&mut self, label: &String, out: &mut [u8]) -> Result<(), Error> {
+        ensure!(self.enable_ask, SnowError::State { reason: StateProblem::ASKNotEnabled });
+        if let Some(ref mut ask_chains) = self.ask_chains {
+            match ask_chains.get_mut(label) {
+                Some(ref mut ask_ck) => {
+                    let hash_len = self.hasher.hash_len();
+                    let mut hkdf_output = ([0u8; MAXHASHLEN], [0u8; MAXHASHLEN]);
+                    self.hasher.hkdf(&ask_ck[..hash_len], &[0u8; 0], None, 2,
+                                     &mut hkdf_output.0,
+                                     &mut hkdf_output.1,
+                                     &mut []);
+                    copy_memory(&hkdf_output.0, &mut ask_ck[..]);
+                    copy_memory(&hkdf_output.1[..ASKLEN], out);
+                    Ok(())
+                }
+                None => bail!(SnowError::Input),
+            }
+        } else {
+            bail!(SnowError::State { reason: StateProblem::ASKNotInitialized })
+        }
     }
 
 }

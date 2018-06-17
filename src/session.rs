@@ -1,3 +1,4 @@
+use constants::ASKLEN;
 use failure::Error;
 use error::{SnowError, StateProblem};
 use handshakestate::HandshakeState;
@@ -174,6 +175,31 @@ impl Session {
         match *self {
             Session::Handshake(ref mut state) => state.set_psk(location, key),
             Session::Transport(_)             => bail!(SnowError::State { reason: StateProblem::HandshakeAlreadyFinished })
+        }
+    }
+
+    /// Initialize the ASK chains with the given labels.
+    ///
+    /// # Errors
+    ///
+    /// Will result in `SnowError::State` if ASK is not enabled, or the ASK master key is not available.
+    pub fn initialize_ask(&mut self, labels: Vec<String>) -> Result<(), Error> {
+        match *self {
+            Session::Handshake(ref mut state) => state.initialize_ask(labels),
+            Session::Transport(_) => bail!(SnowError::State { reason: StateProblem::HandshakeAlreadyFinished }),
+        }
+    }
+
+    /// Get the next key from the key chain corresponding to the given label.
+    ///
+    /// # Errors
+    ///
+    /// Will result in `SnowError::State` if ASK is not enabled, or `initialize_ask()` has not been called.
+    /// Will result in `SnowError::Input` if the label was not provided to `initialize_ask()`.
+    pub fn get_ask(&mut self, label: &String) -> Result<[u8; ASKLEN], Error> {
+        match *self {
+            Session::Handshake(ref mut state) => state.get_ask(label),
+            Session::Transport(_) => bail!(SnowError::State { reason: StateProblem::HandshakeAlreadyFinished }),
         }
     }
 

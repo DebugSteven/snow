@@ -34,6 +34,7 @@ pub struct NoiseBuilder<'builder> {
     rs:       Option<&'builder [u8]>,
     psks:     [Option<&'builder [u8]>; 10],
     plog:     Option<&'builder [u8]>,
+    enable_ask: bool,
 }
 
 impl<'builder> NoiseBuilder<'builder> {
@@ -70,6 +71,7 @@ impl<'builder> NoiseBuilder<'builder> {
             rs: None,
             plog: None,
             psks: [None; 10],
+            enable_ask: false,
         }
     }
 
@@ -100,6 +102,12 @@ impl<'builder> NoiseBuilder<'builder> {
     /// The responder's static public key.
     pub fn remote_public_key(mut self, pub_key: &'builder [u8]) -> Self {
         self.rs = Some(pub_key);
+        self
+    }
+
+    /// Enables derivation of the ASK master keys
+    pub fn enable_ask(mut self) -> Self {
+        self.enable_ask = true;
         self
     }
 
@@ -184,12 +192,17 @@ impl<'builder> NoiseBuilder<'builder> {
             }
         }
 
+        if self.enable_ask && hash.hash_len() < ASKLEN {
+            bail!(SnowError::Init { reason: InitStage::HashLengthTooShortForASK });
+        }
+
         let hs = HandshakeState::new(rng, handshake_cipherstate, hash,
                                      s, e, self.e_fixed.is_some(), rs, re,
                                      initiator,
                                      self.params,
                                      psks,
                                      self.plog.unwrap_or_else(|| &[0u8; 0]),
+                                     self.enable_ask,
                                      cipherstates)?;
         Ok(hs.into())
     }
