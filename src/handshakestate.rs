@@ -1,4 +1,4 @@
-use constants::{PSKLEN, TAGLEN, MAXMSGLEN, MAXDHLEN};
+use constants::{ASKLEN, PSKLEN, TAGLEN, MAXMSGLEN, MAXDHLEN};
 use utils::Toggle;
 use types::{Dh, Hash, Obfusc, Random};
 use cipherstate::{CipherState, CipherStates};
@@ -50,6 +50,7 @@ impl HandshakeState {
         psks            : [Option<[u8; PSKLEN]>; 10],
         prologue        : &'a [u8],
         obfse           : Option<Box<Obfusc + Send>>,
+        enable_ask      : bool,
         cipherstates    : CipherStates) -> Result<HandshakeState, SnowError> {
 
         if (s.is_on() && e.is_on()  && s.pub_len() != e.pub_len())
@@ -61,7 +62,7 @@ impl HandshakeState {
 
         let tokens = HandshakeTokens::try_from(&params.handshake)?;
 
-        let mut symmetricstate = SymmetricState::new(cipherstate, hasher);
+        let mut symmetricstate = SymmetricState::new(cipherstate, hasher, enable_ask);
 
         symmetricstate.initialize(&params.name);
         symmetricstate.mix_hash(prologue);
@@ -385,6 +386,22 @@ impl HandshakeState {
         self.psks[location as usize] = Some(new_psk);
 
         Ok(())
+    }
+
+    pub fn initialize_ask(&mut self, labels: Vec<String>) -> Result<(), SnowError> {
+        self.symmetricstate.create_chains(labels)
+    }
+
+    pub fn get_ask(&mut self, label: &String) -> Result<[u8; ASKLEN], SnowError> {
+        let mut ask = [0u8; ASKLEN];
+        self.symmetricstate.invoke_chain(label, &mut ask)?;
+        Ok(ask)
+    }
+
+    pub fn finalize_ask(&mut self, label: &String) -> Result<([u8; ASKLEN], [u8; ASKLEN]), SnowError> {
+        let mut ask = ([0u8; ASKLEN], [0u8; ASKLEN]);
+        self.symmetricstate.finish_chain(label, &mut ask.0, &mut ask.1)?;
+        Ok(ask)
     }
 
     /// Set the H data at the specified position.

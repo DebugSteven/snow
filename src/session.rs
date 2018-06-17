@@ -1,3 +1,4 @@
+use constants::ASKLEN;
 use error::{SnowError, StateProblem};
 use handshakestate::HandshakeState;
 #[cfg(feature = "nightly")] use std::convert::{TryFrom, TryInto};
@@ -306,6 +307,46 @@ impl Session {
     pub fn set_h_data(&mut self, location: usize, data: &[u8]) -> Result<(), SnowError> {
         match *self {
             Session::Handshake(ref mut state) => state.set_h_data(location, data),
+            _                                 => bail!(StateProblem::HandshakeAlreadyFinished),
+        }
+    }
+
+    /// Initialize the ASK chains with the given labels.
+    ///
+    /// # Errors
+    ///
+    /// Will result in `SnowError::State` if ASK is not enabled, or the ASK master key is not available.
+    pub fn initialize_ask(&mut self, labels: Vec<String>) -> Result<(), SnowError> {
+        match *self {
+            Session::Handshake(ref mut state) => state.initialize_ask(labels),
+            _                                 => bail!(StateProblem::HandshakeAlreadyFinished),
+        }
+    }
+
+    /// Get the next key from the key chain corresponding to the given label.
+    ///
+    /// # Errors
+    ///
+    /// Will result in `SnowError::State` if ASK is not enabled, `initialize_ask()` has not been called,
+    /// or if the key chain has already been finalized.
+    /// Will result in `SnowError::Input` if the label was not provided to `initialize_ask()`.
+    pub fn get_ask(&mut self, label: &String) -> Result<[u8; ASKLEN], SnowError> {
+        match *self {
+            Session::Handshake(ref mut state) => state.get_ask(label),
+            _                                 => bail!(StateProblem::HandshakeAlreadyFinished),
+        }
+    }
+
+    /// Get the last two keys from the key chain corresponding to the given label, and finalizes it.
+    ///
+    /// # Errors
+    ///
+    /// Will result in `SnowError::State` if ASK is not enabled, or `initialize_ask()` has not been called,
+    /// or if the key chain has already been finalized.
+    /// Will result in `SnowError::Input` if the label was not provided to `initialize_ask()`.
+    pub fn finalize_ask(&mut self, label: &String) -> Result<([u8; ASKLEN], [u8; ASKLEN]), SnowError> {
+        match *self {
+            Session::Handshake(ref mut state) => state.finalize_ask(label),
             _                                 => bail!(StateProblem::HandshakeAlreadyFinished),
         }
     }

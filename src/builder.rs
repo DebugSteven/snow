@@ -1,4 +1,4 @@
-use constants::{PSKLEN, MAXDHLEN};
+use constants::{ASKLEN, PSKLEN, MAXDHLEN};
 use handshakestate::HandshakeState;
 use cipherstate::{CipherState, CipherStates};
 use session::Session;
@@ -43,6 +43,7 @@ pub struct Builder<'builder> {
     psks:     [Option<&'builder [u8]>; 10],
     plog:     Option<&'builder [u8]>,
     aesobfse: Option<(&'builder [u8], &'builder [u8; 16])>,
+    enable_ask: bool,
 }
 
 impl<'builder> Builder<'builder> {
@@ -81,6 +82,7 @@ impl<'builder> Builder<'builder> {
             plog: None,
             psks: [None; 10],
             aesobfse: None,
+            enable_ask: false,
         }
     }
 
@@ -120,6 +122,12 @@ impl<'builder> Builder<'builder> {
     /// The responder's static public key.
     pub fn remote_public_key(mut self, pub_key: &'builder [u8]) -> Self {
         self.rs = Some(pub_key);
+        self
+    }
+
+    /// Enables derivation of the ASK master keys
+    pub fn enable_ask(mut self) -> Self {
+        self.enable_ask = true;
         self
     }
 
@@ -218,6 +226,10 @@ impl<'builder> Builder<'builder> {
             None => None,
         };
 
+        if self.enable_ask && hash.hash_len() < ASKLEN {
+            bail!(SnowError::Init { reason: InitStage::HashLengthTooShortForASK });
+        }
+
         let hs = HandshakeState::new(rng, handshake_cipherstate, hash,
                                      s, e, self.e_fixed.is_some(), rs, re,
                                      initiator,
@@ -225,6 +237,7 @@ impl<'builder> Builder<'builder> {
                                      psks,
                                      self.plog.unwrap_or_else(|| &[0u8; 0] ),
                                      aesobfse,
+                                     self.enable_ask,
                                      cipherstates)?;
         Ok(hs.into())
     }
