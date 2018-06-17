@@ -580,3 +580,71 @@ fn test_set_psk() {
     let len = h_i.write_message(&[], &mut buf).unwrap();
     let _   = h_r.read_message(&buf[..len], &mut buf2).unwrap();
 }
+
+#[test]
+fn test_ask() {
+    let params: NoiseParams = "Noise_XX_25519_AESGCM_SHA256".parse().unwrap();
+
+    let b_i = Builder::new(params.clone());
+    let b_r = Builder::new(params);
+
+    let static_i = b_i.generate_keypair().unwrap();
+    let static_r = b_r.generate_keypair().unwrap();
+
+    let mut h_i = b_i
+        .local_private_key(&static_i.private)
+        .enable_ask()
+        .build_initiator().unwrap();
+    let mut h_r = b_r
+        .local_private_key(&static_r.private)
+        .enable_ask()
+        .build_responder().unwrap();
+
+    let mut buf  = [0u8; 1024];
+    let mut buf2 = [0u8; 1024];
+
+    let label = String::from("foo");
+
+    // XX(s, rs):
+    // -> e
+    let len = h_i.write_message(&[], &mut buf).unwrap();
+    let _   = h_r.read_message(&buf[..len], &mut buf2).unwrap();
+
+    // ASKMasterKeyNotReady
+    assert!(h_i.initialize_ask(vec![label.clone()]).is_err());
+    assert!(h_r.initialize_ask(vec![label.clone()]).is_err());
+
+    // ASKNotInitialized
+    assert!(h_i.get_ask(&label).is_err());
+    assert!(h_r.get_ask(&label).is_err());
+    assert!(h_i.finalize_ask(&label).is_err());
+    assert!(h_r.finalize_ask(&label).is_err());
+
+    // <- e, ee s, es
+    let len = h_r.write_message(&[], &mut buf).unwrap();
+    let _   = h_i.read_message(&buf[..len], &mut buf2).unwrap();
+
+    h_i.initialize_ask(vec![label.clone()]).unwrap();
+    h_r.initialize_ask(vec![label.clone()]).unwrap();
+    let ask1 = h_i.get_ask(&label).unwrap();
+    assert_eq!(h_r.get_ask(&label).unwrap(), ask1);
+
+    // -> s, se, psk
+    let len = h_i.write_message(&[], &mut buf).unwrap();
+    let _   = h_r.read_message(&buf[..len], &mut buf2).unwrap();
+
+    h_i.initialize_ask(vec![label.clone()]).unwrap();
+    h_r.initialize_ask(vec![label.clone()]).unwrap();
+    let ask2 = h_i.get_ask(&label).unwrap();
+    assert_eq!(h_r.get_ask(&label).unwrap(), ask2);
+    assert!(ask1 != ask2);
+
+    let ask3 = h_i.finalize_ask(&label).unwrap();
+    assert_eq!(h_r.finalize_ask(&label).unwrap(), ask3);
+
+    // ASKChainFinalized
+    assert!(h_i.get_ask(&label).is_err());
+    assert!(h_r.get_ask(&label).is_err());
+    assert!(h_i.finalize_ask(&label).is_err());
+    assert!(h_r.finalize_ask(&label).is_err());
+}

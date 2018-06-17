@@ -2,6 +2,7 @@
 pub const PSKLEN : usize = 32;
 pub const CIPHERKEYLEN : usize = 32;
 pub const TAGLEN : usize = 16;
+pub const ASKLEN : usize = 32;
 
 pub const MAXHASHLEN : usize = 64;
 pub const MAXBLOCKLEN : usize = 128;
