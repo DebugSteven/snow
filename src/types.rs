@@ -99,10 +99,14 @@ pub trait Hash : Send + Sync {
     /// Derive keys as specified in the Noise spec.
     ///
     /// NOTE: This method clobbers the existing internal state
-    fn hkdf(&mut self, chaining_key: &[u8], input_key_material: &[u8], outputs: usize, out1: &mut [u8], out2: &mut [u8], out3: &mut [u8]) {
+    fn hkdf(&mut self, chaining_key: &[u8], input_key_material: &[u8], mut ask_master: Option<&mut [u8]>,
+            outputs: usize, out1: &mut [u8], out2: &mut [u8], out3: &mut [u8]) {
         let hash_len = self.hash_len();
         let mut temp_key = [0u8; MAXHASHLEN];
         self.hmac(chaining_key, input_key_material, &mut temp_key);
+        if let Some(ref mut ask_master) = ask_master {
+            self.hmac(&temp_key, &['a' as u8, 's' as u8, 'k' as u8, 1u8], ask_master);
+        }
         self.hmac(&temp_key, &[1u8], out1);
         if outputs == 1 {
             return;

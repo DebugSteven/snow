@@ -80,6 +80,7 @@ pub enum InitStage {
     GetObfuscImpl,
     ValidatePskPosition,
     ValidateHsPosition,
+    HashLengthTooShortForASK,
 }
 
 impl From<InitStage> for SnowError {
@@ -112,6 +113,10 @@ pub enum StateProblem {
     MissingH,
     NotTurnToWrite,
     NotTurnToRead,
+    ASKNotEnabled,
+    ASKMasterKeyNotReady,
+    ASKNotInitialized,
+    ASKChainFinalized,
     HandshakeNotFinished,
     HandshakeAlreadyFinished,
     OneWay,
