@@ -1,14 +1,15 @@
-# Snow
+# Snow (with I2P Noise extensions)
 
-[![Crates.io](https://img.shields.io/crates/v/snow.svg)](https://crates.io/crates/snow)
-[![Docs.rs](https://docs.rs/snow/badge.svg)](https://docs.rs/snow)
-[![Build Status](https://travis-ci.org/mcginty/snow.svg?branch=master)](https://travis-ci.org/mcginty/snow)
-[![dependency status](https://deps.rs/repo/github/mcginty/snow/status.svg)](https://deps.rs/repo/github/mcginty/snow)
+[![Crates.io](https://img.shields.io/crates/v/i2p_snow.svg)](https://crates.io/crates/i2p_snow)
+[![Docs.rs](https://docs.rs/i2p_snow/badge.svg)](https://docs.rs/i2p_snow)
 
 ![totally official snow logo](https://i.imgur.com/gFgvo49.jpg?1)
 
 An implementation of Trevor Perrin's [Noise Protocol](https://noiseprotocol.org/) that is designed to be
 Hard To Fuck Up™.
+
+This codebase contains additional Noise extensions used by [I2P](https://geti2p.net) for the
+[NTCP2 protocol](https://geti2p.net/spec/ntcp2). Look [here](https://snow.rs) for the unmodified crate.
 
 🔥 **Warning** 🔥 This library has not received any formal audit, and its API is subject to change whenever it's
 prudent to or if the winds blow at the right heading.
@@ -17,7 +18,7 @@ prudent to or if the winds blow at the right heading.
 See `examples/simple.rs` for a more complete TCP client/server example.
 
 ```rust
-let mut noise = snow::Builder::new("Noise_NN_25519_ChaChaPoly_BLAKE2s".parse()?)
+let mut noise = i2p_snow::Builder::new("Noise_NN_25519_ChaChaPoly_BLAKE2s".parse()?)
                     .build_initiator()?;
  
 let mut buf = [0u8; 65535];
@@ -33,7 +34,7 @@ noise.read_message(&incoming, &mut buf)?;
 let mut noise = noise.into_transport_mode()?;
 ```
 
-See the full documentation at [https://docs.rs/snow](https://docs.rs/snow).
+See the full documentation at [https://docs.rs/i2p_snow](https://docs.rs/i2p_snow).
 
 
 ## Implemented
