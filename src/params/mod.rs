@@ -124,7 +124,7 @@ pub enum ObfuscChoice {
 /// From a string definition:
 ///
 /// ```
-/// # use snow::params::*;
+/// # use i2p_snow::params::*;
 ///
 /// let params: NoiseParams = "Noise_XX_25519_AESGCM_SHA256".parse().unwrap();
 /// ```

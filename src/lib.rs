@@ -11,7 +11,7 @@
 //!
 //! ```
 //! # extern crate failure;
-//! # extern crate snow;
+//! # extern crate i2p_snow as snow;
 //! # use failure::Error;
 //! # use snow::SnowError;
 //! #

@@ -1,15 +1,15 @@
 [package]
-name = "snow"
-description = "A pure-rust implementation of the Noise Protocol Framework"
-homepage = "https://snow.rs"
-documentation = "https://snow.rs/doc/snow"
-repository = "https://github.com/mcginty/snow"
+name = "i2p_snow"
+description = "A pure-rust implementation of the Noise Protocol Framework, with I2P Noise extensions"
+homepage = "https://github.com/str4d/snow/tree/i2p-0.5.1"
+documentation = "https://snow.rs/doc/i2p_snow"
+repository = "https://github.com/str4d/snow/tree/i2p-0.5.1"
 version = "0.5.1"
-authors = ["Jake McGinty <me@jake.su>", "trevp"]
+authors = ["Jake McGinty <me@jake.su>", "trevp", "Jack Grigg <thestr4d@gmail.com>"]
 license = "Unlicense"
 categories = ["cryptography"]
 readme = "README.md"
-keywords = ["noise", "protocol", "crypto"]
+keywords = ["noise", "protocol", "crypto", "i2p"]
 
 # This is slightly mumbo-jumboey, but in short:
 # Features with a -resolver suffix simply enables the existence of a specific resolver,
@@ -27,10 +27,6 @@ vector-tests = []
 [[bench]]
 name = "benches"
 harness = false
-
-[badges]
-travis-ci = { repository = "mcginty/snow", branch = "master" }
-appveyor = { repository = "mcginty/snow", branch = "master", service = "github" }
 
 [dependencies]
 arrayref = "^0.3"

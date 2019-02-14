@@ -24,7 +24,7 @@ pub struct Keypair {
 /// # Examples
 ///
 /// ```
-/// # use snow::Builder;
+/// # use i2p_snow::Builder;
 /// # let my_long_term_key = [0u8; 32];
 /// # let their_pub_key = [0u8; 32];
 /// let noise = Builder::new("Noise_XX_25519_ChaChaPoly_BLAKE2s".parse().unwrap())

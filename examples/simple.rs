@@ -7,7 +7,7 @@
 
 #[macro_use] extern crate lazy_static;
 extern crate clap;
-extern crate snow;
+extern crate i2p_snow as snow;
 
 use clap::App;
 use snow::Builder;

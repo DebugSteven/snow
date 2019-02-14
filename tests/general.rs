@@ -1,7 +1,7 @@
 #![cfg_attr(feature = "cargo-clippy", allow(needless_range_loop))]
 #![allow(non_snake_case)]
 extern crate hex;
-extern crate snow;
+extern crate i2p_snow as snow;
 extern crate x25519_dalek;
 extern crate rand_core;
 
